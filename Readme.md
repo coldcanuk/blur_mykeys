@@ -2,6 +2,8 @@
 
 This tool processes video files to detect and blur potential API keys or sensitive information visible in the frames. It uses OCR (Optical Character Recognition) to identify text that matches specific patterns and applies a Gaussian blur to obscure them.
 
+This tool kinda works right now. It is not perfect but it is an excellent starting point on how to do OCR with video and FFMPEG.
+
 ## Overview
 
 The script performs the following steps:
