@@ -1,0 +1,13 @@
+# Ignore virtual environment
+.venv/
+
+blur_apikeys.log
+.env
+
+# Standard python project files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz

@@ -1,0 +1,21 @@
+min_key_length: 20
+max_key_length: 64
+blur_kernel_size: 51
+confidence_threshold: 50
+max_workers: 10
+video_filename: "output.mkv"
+fps: 30
+brightness_threshold: 128
+providers:
+  Cloudflare: '[A-Za-z0-9]{37,40}'
+  Azure: '[A-Za-z0-9]{8}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{12}'
+  Runpod: '[A-Za-z0-9_-]{20,40}'
+  Linode: '[A-Za-z0-9]{64}'
+  OpenAI: '[A-Za-z0-9]{37,40}'
+  Anthropic: '[A-Za-z0-9]{37,40}'
+  Gemini: '[A-Za-z0-9]{37,40}'
+  Groq: '[A-Za-z0-9]{37,40}'
+  Grok: '[A-Za-z0-9]{37,40}'
+  Replicate: '[A-Za-z0-9]{37,40}'
+  HuggingFace: '[A-Za-z0-9]{37,40}'
+  AWS: '[A-Za-z0-9]{20,40}'
