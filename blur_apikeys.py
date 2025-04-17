@@ -17,7 +17,7 @@ if os.path.exists('blur_apikeys.log'):
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', filename='blur_apikeys.log')
 logger = logging.getLogger(__name__)
 
-# Configuration - will bring in the config from blur_apikeys.yml after we confirm the code is working as intended.
+# Configuration
 config = {
     'blur_kernel_size': 51,
     'max_workers': 10,
@@ -40,22 +40,21 @@ os.makedirs(input_dir, exist_ok=True)
 os.makedirs(output_dir, exist_ok=True)
 os.makedirs(pre_output_dir, exist_ok=True)
 
-# Target prefixes for fuzzy matching
-target_prefixes = ["AI_API_KEY=", "AZURE_CLIENT_SECRET="]
+# Target keys for fuzzy matching (without '=')
+target_keys = ["ai_api_key", "azure_client_secret"]
+
+def normalize(text):
+    """Normalize text by keeping only letters and underscores, convert to lowercase."""
+    return re.sub(r'[^a-z_]', '', text.lower())
 
 def prepare_image_for_ocr(image):
     """Prepare image for OCR, optimized for dark mode IDE."""
-    # Convert to HSV and use V channel
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     v_channel = hsv[:, :, 2]
-    # Invert for dark text on light background
     inverted = cv2.bitwise_not(v_channel)
-    # Reduce noise
     filtered = cv2.bilateralFilter(inverted, 9, 75, 75)
-    # Scale for better OCR (increased to 3x)
     scale_factor = 3
     scaled = cv2.resize(filtered, None, fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_CUBIC)
-    # Adaptive thresholding for better text clarity
     thresholded = cv2.adaptiveThreshold(scaled, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
     return thresholded, scale_factor
 
@@ -78,31 +77,28 @@ def extract_frames():
 
 def blur_region(image, x, y, w, h, kernel_size):
     """Apply Gaussian blur to a region."""
-    kernel_size = max(1, int(kernel_size) | 1)  # Ensure odd number
+    kernel_size = max(1, int(kernel_size) | 1)
     roi = image[y:y+h, x:x+w]
     blurred = cv2.GaussianBlur(roi, (kernel_size, kernel_size), 0)
     image[y:y+h, x:x+w] = blurred
     return image
 
 def process_frame(frame_path, output_path):
-    """Process a frame to blur lines containing API keys using fuzzy matching."""
+    """Process a frame to blur lines containing API keys using fuzzy matching on key part."""
     try:
         img = cv2.imread(frame_path)
         if img is None:
             raise ValueError(f"Failed to load {frame_path}")
 
         ocr_image, scale_factor = prepare_image_for_ocr(img)
-        # Tesseract config: PSM 11 for sparse text, no whitelist to avoid limiting detection
         custom_config = r'--psm 11'
         data = pytesseract.image_to_data(ocr_image, config=custom_config, output_type=pytesseract.Output.DICT)
 
-        # Log full extracted text for debugging
         full_text = pytesseract.image_to_string(ocr_image, config=custom_config)
         logger.info(f"Full extracted text for {frame_path}: {full_text}")
         num_words = sum(1 for text in data['text'] if text.strip())
         logger.info(f"Detected {num_words} words in {frame_path}")
 
-        # Group words by line
         lines = defaultdict(list)
         for i in range(len(data['text'])):
             if data['text'][i].strip():
@@ -119,29 +115,31 @@ def process_frame(frame_path, output_path):
         blurred_regions = 0
         for _, words in lines.items():
             line_text = " ".join(word['text'] for word in words)
-            logger.info(f"Extracted line: {line_text}")
-            for prefix in target_prefixes:
-                similarity = fuzz.partial_ratio(prefix.lower(), line_text.lower())
-                if similarity > 85:
-                    logger.info(f"Detected prefix similar to {prefix} (score: {similarity}) in line: {line_text}")
-                    # Calculate bounding box for the entire line
+            if '=' not in line_text:
+                continue
+            key_part = line_text.split('=', 1)[0].strip()
+            normalized_key = normalize(key_part)
+            for target_key in target_keys:
+                similarity = fuzz.ratio(target_key, normalized_key)
+                logger.info(f"Similarity score for '{normalized_key}' against '{target_key}': {similarity}")
+                if similarity > 80:
+                    logger.info(f"Detected key similar to {target_key} (score: {similarity}) in line: {line_text}")
                     x_min = int(min(word['left'] for word in words) / scale_factor)
                     y_min = int(min(word['top'] for word in words) / scale_factor)
                     x_max = int(max(word['left'] + word['width'] for word in words) / scale_factor)
                     y_max = int(max(word['top'] + word['height'] for word in words) / scale_factor)
                     w = x_max - x_min
                     h = y_max - y_min
-                    # Add padding to ensure full line is blurred
                     padding = 10
                     x = max(0, x_min - padding)
                     y = max(0, y_min - padding)
                     w = min(img.shape[1] - x, w + 2 * padding)
                     h = min(img.shape[0] - y, h + 2 * padding)
+                    logger.info(f"Blurring region at x={x}, y={y}, w={w}, h={h}")
                     img = blur_region(img, x, y, w, h, config['blur_kernel_size'])
                     blurred_regions += 1
                     break
 
-        # Save preprocessed image for debugging (every 10th frame)
         frame_num = int(Path(frame_path).stem.split('_')[1])
         if frame_num % 10 == 0:
             cv2.imwrite(os.path.join(pre_output_dir, f"preprocessed_frame_{frame_num}.png"), ocr_image)
