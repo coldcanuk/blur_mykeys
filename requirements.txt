@@ -1,0 +1,8 @@
+numpy==2.2.4
+opencv-python==4.11.0.86
+packaging==24.2
+pillow==11.2.1
+pytesseract==0.3.13
+PyYAML==6.0.2
+fuzzywuzzy
+python-Levenshtein

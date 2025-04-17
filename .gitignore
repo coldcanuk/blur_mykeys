@@ -2,6 +2,7 @@
 .venv/
 
 blur_apikeys.log
+blur_apikeys.log.bak
 .env
 
 # Standard python project files
